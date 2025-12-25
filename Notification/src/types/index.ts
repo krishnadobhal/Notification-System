@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export interface NotificationMessage {
     userId: string;
     content: string;
@@ -6,3 +8,13 @@ export interface NotificationMessage {
     priority: 'low' | 'high';
     action_url?: string;
 }
+
+
+export const NotificationSchema = z.object({
+    userId: z.string(),
+    content: z.string(),
+    timestamp: z.number(),
+    type: z.enum(['email', 'sms']),
+    priority: z.enum(['low', 'high']),
+    action_url: z.string().optional()
+});

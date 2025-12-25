@@ -1,31 +1,50 @@
 import KafkaConfig from "@/client/kafka.ts";
-import { NotificationMessage } from "@/types/index.ts";
 import { HandleMessage } from "./message.ts";
+import { sendRaw } from "./rabbitmq.ts";
+import { NotificationSchema } from "@/types/index.ts";
+
 
 const kafkaConfig = new KafkaConfig();
 
 const startConsumer = async () => {
-    // Ensure consumer is connected and subscribed before running
     await kafkaConfig.consumer.connect();
     await kafkaConfig.consumer.subscribe({ topic: "Notification", fromBeginning: true });
 
     await kafkaConfig.consumer.run({
-        autoCommit: false, // Disable auto commit
+        autoCommit: false,
+        eachBatchAutoResolve: false, // We will manage commits manually
+        eachBatch: async ({ batch, resolveOffset, heartbeat, isRunning }) => {
 
-        // Use autoCommit: false for manual offset control if needed
-        eachMessage: async ({ topic, partition, message, heartbeat, pause }) => {
-            console.log({
-                key: message.key?.toString(),
-                value: message.value?.toString(),
-                headers: message.headers,
+            // Process messages concurrently
+            const promises = batch.messages.map(async (message) => {
+                if (!isRunning()) return;
+
+                try {
+                    const rawValue = message.value ? JSON.parse(message.value.toString()) : {};
+                    const result = NotificationSchema.safeParse(rawValue);
+
+                    // If validation fails, send to RabbitMQ error queue
+                    if (!result.success) {
+                        sendRaw("NotificationErrors", { error: "Invalid notification message", details: result.error.cause, rawMessage: rawValue });
+                        return;
+                    }
+
+                    // Process the valid message
+                    await HandleMessage(result.data);
+
+                    // Mark this specific offset as processed
+                    resolveOffset(message.offset);
+                } catch (err) {
+                    console.error(`Error processing message offset ${message.offset}:`, err);
+                    sendRaw("NotificationErrors", { error: "Invalid notification message", details: err, rawMessage: message.value ? message.value.toString() : null });
+                }
             });
-            const messageValue: NotificationMessage = message.value ? JSON.parse(message.value.toString()) : {};
-            await HandleMessage(messageValue);
 
-            // Manually commit the offset after processing
-            await kafkaConfig.consumer.commitOffsets([
-                { topic, partition, offset: (BigInt(message.offset) + 1n).toString() }
-            ]);
+            // Wait for all messages in this batch to finish
+            await Promise.all(promises);
+
+            // Heartbeat to keep connection alive during long batches
+            await heartbeat();
         }
     });
 }
