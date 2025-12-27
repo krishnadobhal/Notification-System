@@ -7,11 +7,15 @@ export function sendMessage(payload: KafkaNotificationMessage, type: 'email' | '
     if (type === 'email') {
         const content = giveEmailContent(payload);
         delete (payload as any).userId;
-        sendMessageToEmailQueue({ ...payload, ...content, timestamp: Date.now() } as EmailNotificationMessage, delay);
+        // Added content, subject, timestamp, retryCount
+        const message: EmailNotificationMessage = { ...payload, ...content, timestamp: Date.now(), retryCount: 0 } as EmailNotificationMessage;
+        sendMessageToEmailQueue(message, delay);
     } else if (type === 'sms') {
         const content = giveSmsContent(payload);
         delete (payload as any).userId;
-        sendMessageToSMSQueue({ ...payload, ...content, timestamp: Date.now() } as SmsNotificationMessage, delay);
+        // Added content, subject, timestamp, retryCount
+        const message: SmsNotificationMessage = { ...payload, ...content, timestamp: Date.now(), retryCount: 0 } as SmsNotificationMessage;
+        sendMessageToSMSQueue(message, delay);
     }
 }
 

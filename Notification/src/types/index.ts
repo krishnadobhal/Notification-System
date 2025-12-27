@@ -13,6 +13,7 @@ export interface EmailNotificationMessage {
     content: string;
     timestamp: number;
     subject: string;
+    retryCount: number;
 }
 
 export interface SmsNotificationMessage {
@@ -21,6 +22,7 @@ export interface SmsNotificationMessage {
     to: string;
     content: string;
     timestamp: number;
+    retryCount: number;
 }
 export interface KafkaNotificationMessage {
     // timestamp: number;
