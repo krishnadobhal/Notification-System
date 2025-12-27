@@ -1,22 +1,49 @@
 import { z } from 'zod';
 
-export interface NotificationMessage {
-    userId: string;
-    content: string;
-    timestamp: number;
+
+export type NotificationKind =
+    | 'Video_Processing_Complete'
+    | 'Video_Processing_Failed'
+    | 'Video_Audio_Transcription_Complete'
+    | 'Video_Audio_Transcription_Failed'
+export interface EmailNotificationMessage {
     type: 'email' | 'sms';
     priority: 'low' | 'high';
-    action_url?: string;
     to: string;
+    content: string;
+    timestamp: number;
+    subject: string;
+}
+
+export interface SmsNotificationMessage {
+    type: 'email' | 'sms';
+    priority: 'low' | 'high';
+    to: string;
+    content: string;
+    timestamp: number;
+}
+export interface KafkaNotificationMessage {
+    // timestamp: number;
+    userId: string;
+    type: 'email' | 'sms';
+    priority: 'low' | 'high';
+    to: string;
+    action_url?: string;
+    notification: NotificationKind;
 }
 
 
-export const NotificationSchema = z.object({
+
+export const KafkaNotificationSchema = z.object({
     userId: z.string(),
-    content: z.string(),
-    timestamp: z.number(),
     type: z.enum(['email', 'sms']),
     priority: z.enum(['low', 'high']),
     action_url: z.string().optional(),
     to: z.string(),
+    notification: z.enum([
+        'Video_Processing_Complete',
+        'Video_Processing_Failed',
+        'Video_Audio_Transcription_Complete',
+        'Video_Audio_Transcription_Failed'
+    ]),
 });

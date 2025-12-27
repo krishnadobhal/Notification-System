@@ -5,6 +5,9 @@ export async function setupQueues() {
 
     await channel.assertExchange('dlx', 'direct', { durable: true });
 
+    //! Delayed exchanges
+
+    // Notification delayed exchange
     await channel.assertExchange(
         'notification-delayed-exchange',
         'x-delayed-message',
@@ -15,7 +18,17 @@ export async function setupQueues() {
             },
         }
     );
+    await channel.assertExchange(
+        'notification-retry-exchange',
+        'x-delayed-message',
+        {
+            durable: true, arguments: {
+                'x-delayed-type': 'direct',
+            },
+        }
+    )
 
+    //! Main queues
     await channel.assertQueue('Email-Queue', {
         durable: true,
         arguments: {
@@ -32,11 +45,22 @@ export async function setupQueues() {
         },
     });
 
-    await channel.assertQueue('Email-DLQ', { durable: true });
-    await channel.assertQueue('SMS-DLQ', { durable: true });
+    await channel.assertQueue('Email-Retry-Queue', {
+        durable: true,
+        arguments: {
+            'x-dead-letter-exchange': 'notification-delayed-exchange',
+            'x-dead-letter-routing-key': 'email',
+        },
+    });
+    await channel.assertQueue('SMS-Retry-Queue', {
+        durable: true,
+        arguments: {
+            'x-dead-letter-exchange': 'notification-delayed-exchange',
+            'x-dead-letter-routing-key': 'sms',
+        },
+    });
 
-
-    // Main queues (after delay)
+    //! Bindings
     await channel.bindQueue(
         'Email-Queue',
         'notification-delayed-exchange',
@@ -47,6 +71,18 @@ export async function setupQueues() {
         'SMS-Queue',
         'notification-delayed-exchange',
         'sms'
+    );
+
+    // Retry queues
+    await channel.bindQueue(
+        'Email-Retry-Queue',
+        'notification-retry-exchange',
+        'email-retry'
+    );
+    await channel.bindQueue(
+        'SMS-Retry-Queue',
+        'notification-retry-exchange',
+        'sms-retry'
     );
 
     // DLQs

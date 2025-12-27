@@ -1,5 +1,5 @@
 import { GetUserPreferences } from "@/repository/user.ts";
-import { NotificationMessage } from "@/types/index.ts";
+import { KafkaNotificationMessage } from "@/types/index.ts";
 import { sendMessage } from "./rabbitmq.ts";
 import { isRateLimited } from "./redisRatelimiter.ts";
 
@@ -16,11 +16,10 @@ const CHANNEL_CONFIG = {
     }
 } as const;
 
-
 export const HandleMessage = async (
-    message: NotificationMessage
+    message: KafkaNotificationMessage
 ): Promise<void> => {
-    const { userId, type, priority } = message;
+    const { userId, type, priority, action_url, to, notification } = message;
 
     const userPreferences = await GetUserPreferences(Number(userId));
     if (!userPreferences) {

@@ -1,7 +1,7 @@
 import KafkaConfig from "@/client/kafka.ts";
 import { HandleMessage } from "./message.ts";
 import { sendRaw } from "./rabbitmq.ts";
-import { NotificationSchema } from "@/types/index.ts";
+import { KafkaNotificationMessage, KafkaNotificationSchema } from "@/types/index.ts";
 
 
 const kafkaConfig = new KafkaConfig();
@@ -21,7 +21,7 @@ const startConsumer = async () => {
 
                 try {
                     const rawValue = message.value ? JSON.parse(message.value.toString()) : {};
-                    const result = NotificationSchema.safeParse(rawValue);
+                    const result = KafkaNotificationSchema.safeParse(rawValue);
 
                     // If validation fails, send to RabbitMQ error queue
                     if (!result.success) {
