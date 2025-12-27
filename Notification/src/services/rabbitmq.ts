@@ -1,10 +1,24 @@
 import { rabbitMQ } from "@/client/rabbitmq.ts";
 import { NotificationMessage } from "@/types/index.ts";
 
-export async function sendMessage(queueMessage: NotificationMessage, queue: string) {
+
+
+export function sendMessage(payload: NotificationMessage, queue: string, delay = 0) {
     const channel = rabbitMQ.getChannel();
-    channel.sendToQueue(queue, Buffer.from(JSON.stringify(queueMessage)), { persistent: true });
-    console.log(`Sent: ${JSON.stringify(queueMessage)}`);
+
+    channel.publish(
+        'notification-delayed-exchange',
+        queue,
+        Buffer.from(JSON.stringify(payload)),
+        {
+            persistent: true,
+            headers: {
+                'x-delay': delay,
+            },
+        }
+    );
+
+    console.log(`Email sent (delay: ${delay}ms)`);
 }
 
 export async function sendRaw(queue: string, rawMessage: any) {

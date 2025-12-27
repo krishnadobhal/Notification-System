@@ -3,51 +3,59 @@ import { NotificationMessage } from "@/types/index.ts";
 import { sendMessage } from "./rabbitmq.ts";
 import { isRateLimited } from "./redisRatelimiter.ts";
 
-export const HandleMessage = async (message: NotificationMessage): Promise<void> => {
-    const { userId, type } = message;
+const CHANNEL_CONFIG = {
+    email: {
+        enabled: (prefs: any) => prefs.email_notifications,
+        limit: { max: 5, time: 60 * 60 },
+        delayOnLimit: 30 * 60 * 1000 // 30 minutes
+    },
+    sms: {
+        enabled: (prefs: any) => prefs.sms_notifications,
+        limit: { max: 3, time: 60 * 60 },
+        delayOnLimit: 30 * 60 * 1000 // 30 minutes
+    }
+} as const;
+
+
+export const HandleMessage = async (
+    message: NotificationMessage
+): Promise<void> => {
+    const { userId, type, priority } = message;
 
     const userPreferences = await GetUserPreferences(Number(userId));
     if (!userPreferences) {
-        console.log(`No preferences found for user ${userId}. Skipping.`);
+        console.log(`No preferences for user ${userId}`);
         return;
     }
 
-    // Channel-specific limits
-    const limits = {
-        email: { max: 5, time: 60 * 60 }, // 5 per hour
-        sms: { max: 3, time: 60 * 60 }    // 3 per hour
-    };
+    // Determine channel config
+    const channel = CHANNEL_CONFIG[type as keyof typeof CHANNEL_CONFIG];
 
-    const config = limits[type];
-
-    if (!config) {
+    if (!channel) {
         console.log(`Unknown notification type: ${type}`);
         return;
     }
 
-    const limited = await isRateLimited(
+    if (!channel.enabled(userPreferences)) {
+        console.log(`User ${userId} opted out of ${type}`);
+        return;
+    }
+
+    const isLimited = await isRateLimited(
         Number(userId),
         type,
-        config.max,
-        config.time
+        channel.limit.max,
+        channel.limit.time
     );
 
-    if (limited && message.priority !== "high") {
-        console.log(`Rate limit exceeded for ${type} user ${userId}`);
+    // Bypass rate limit for low priority messages
+    if (isLimited && priority !== "high") {
+        console.log(`Rate limited ${type} for user ${userId}`);
+        sendMessage(message, type, channel.delayOnLimit);
         return;
     }
 
-    if (type === "email" && userPreferences.email_notifications) {
-        console.log(`Sending email notification to user ${userId}`);
-        await sendMessage(message, "Email-Queue");
-        return;
-    }
-
-    if (type === "sms" && userPreferences.sms_notifications) {
-        console.log(`Sending SMS notification to user ${userId}`);
-        await sendMessage(message, "SMS-Queue");
-        return;
-    }
-
-    console.log(`User ${userId} opted out of ${type}`);
+    // Send the message immediately if not rate limited
+    sendMessage(message, type);
 };
+
