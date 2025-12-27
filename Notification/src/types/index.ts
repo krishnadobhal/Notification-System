@@ -6,6 +6,9 @@ export type NotificationKind =
     | 'Video_Processing_Failed'
     | 'Video_Audio_Transcription_Complete'
     | 'Video_Audio_Transcription_Failed'
+
+type NotificationChannel = 'email' | 'sms';
+
 export interface EmailNotificationMessage {
     type: 'email' | 'sms';
     priority: 'low' | 'high';
@@ -25,9 +28,8 @@ export interface SmsNotificationMessage {
     retryCount: number;
 }
 export interface KafkaNotificationMessage {
-    // timestamp: number;
     userId: string;
-    type: 'email' | 'sms';
+    type: NotificationChannel[];
     priority: 'low' | 'high';
     to: string;
     action_url?: string;

@@ -19,7 +19,7 @@ const CHANNEL_CONFIG = {
 export const HandleMessage = async (
     message: KafkaNotificationMessage
 ): Promise<void> => {
-    const { userId, type, priority, action_url, to, notification } = message;
+    const { userId, type: channels, priority } = message;
 
     const userPreferences = await GetUserPreferences(Number(userId));
     if (!userPreferences) {
@@ -27,34 +27,34 @@ export const HandleMessage = async (
         return;
     }
 
-    // Determine channel config
-    const channel = CHANNEL_CONFIG[type as keyof typeof CHANNEL_CONFIG];
+    for (const channelType of channels) {
+        const channel = CHANNEL_CONFIG[channelType];
 
-    if (!channel) {
-        console.log(`Unknown notification type: ${type}`);
-        return;
+        if (!channel) {
+            console.log(`Unknown notification type: ${channelType}`);
+            continue;
+        }
+
+        if (!channel.enabled(userPreferences)) {
+            console.log(`User ${userId} opted out of ${channelType}`);
+            continue;
+        }
+
+        const isLimited = await isRateLimited(
+            Number(userId),
+            channelType,
+            channel.limit.max,
+            channel.limit.time
+        );
+
+        // Bypass rate limit only for HIGH priority
+        if (isLimited && priority !== "high") {
+            console.log(`Rate limited ${channelType} for user ${userId}`);
+            sendMessage(message, channelType, channel.delayOnLimit);
+            continue;
+        }
+
+        // Send immediately
+        sendMessage(message, channelType);
     }
-
-    if (!channel.enabled(userPreferences)) {
-        console.log(`User ${userId} opted out of ${type}`);
-        return;
-    }
-
-    const isLimited = await isRateLimited(
-        Number(userId),
-        type,
-        channel.limit.max,
-        channel.limit.time
-    );
-
-    // Bypass rate limit for low priority messages
-    if (isLimited && priority !== "high") {
-        console.log(`Rate limited ${type} for user ${userId}`);
-        sendMessage(message, type, channel.delayOnLimit);
-        return;
-    }
-
-    // Send the message immediately if not rate limited
-    sendMessage(message, type);
 };
-
