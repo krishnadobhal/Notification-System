@@ -28,6 +28,7 @@ export interface SmsNotificationMessage {
     retryCount: number;
 }
 export interface KafkaNotificationMessage {
+    id: string
     userId: string;
     type: NotificationChannel[];
     priority: 'low' | 'high';
@@ -39,8 +40,9 @@ export interface KafkaNotificationMessage {
 
 
 export const KafkaNotificationSchema = z.object({
+    id: z.string().uuid(),
     userId: z.string(),
-    type: z.enum(['email', 'sms']),
+    type: z.array(z.enum(['email', 'sms'])),
     priority: z.enum(['low', 'high']),
     action_url: z.string().optional(),
     to: z.string(),
